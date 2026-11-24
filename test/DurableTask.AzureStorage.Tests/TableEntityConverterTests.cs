@@ -21,12 +21,42 @@ namespace DurableTask.AzureStorage.Tests
     using Azure.Data.Tables;
     using DurableTask.AzureStorage.Tests.Obsolete;
     using DurableTask.AzureStorage.Tracking;
+    using DurableTask.Core;
+    using DurableTask.Core.History;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using Microsoft.WindowsAzure.Storage;
 
     [TestClass]
     public class TableEntityConverterTests
     {
+        [TestMethod]
+        public void ActivityRetryMetadataRoundTripsInHistoryTable()
+        {
+            var expected = new TaskScheduledEvent(42, "work")
+            {
+                RetryMetadata = new RetryMetadata(2, 5, "execution:17"),
+            };
+            TableEntity entity = TableEntityConverter.Serialize(expected);
+            Assert.IsTrue(entity.GetString(nameof(TaskScheduledEvent.RetryMetadata)).Contains("\"AttemptNumber\":2"));
+            var actual = (TaskScheduledEvent)TableEntityConverter.Deserialize(entity, typeof(TaskScheduledEvent));
+            Assert.AreEqual(2, actual.RetryMetadata.AttemptNumber);
+            Assert.AreEqual(5, actual.RetryMetadata.MaxAttempts);
+            Assert.AreEqual("execution:17", actual.RetryMetadata.RetryGroupId);
+
+            entity.Remove(nameof(TaskScheduledEvent.RetryMetadata));
+            actual = (TaskScheduledEvent)TableEntityConverter.Deserialize(entity, typeof(TaskScheduledEvent));
+            Assert.IsNull(actual.RetryMetadata);
+        }
+
+        [TestMethod]
+        public void ActivityRetryMetadataRejectsCorruptHistory()
+        {
+            var entity = TableEntityConverter.Serialize(new TaskScheduledEvent(42, "work"));
+            entity[nameof(TaskScheduledEvent.RetryMetadata)] =
+                "{\"AttemptNumber\":0,\"MaxAttempts\":5,\"RetryGroupId\":\"execution:17\"}";
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() => TableEntityConverter.Deserialize(entity, typeof(TaskScheduledEvent)));
+        }
+
         [TestMethod]
         public void DeserializeNonNull()
         {

@@ -109,6 +109,18 @@ The `DurableTelemetryModule` automatically tracks:
 
 ### Distributed Tracing
 
+`DurableTelemetryModule` maps `durabletask.task.retry.scheduled` orchestration-span
+events to correlated `EventTelemetry` (`customEvents`). These are exported only
+when the orchestration span completes, retaining the original retry scheduling
+timestamps; they are not live notifications while the orchestration runs.
+Only the six retry-event attributes in the
+[trace semantic conventions](traces/semantic-conventions.md#activity-retry-metadata)
+are copied. Inputs, error messages, stack traces, and arbitrary event tags/baggage
+are not added to these retry events. Existing request and dependency export is unchanged.
+Reconstruction is limited to retained generation history. The existing inherited-trace
+`ContinueAsNew` history reset does not retain prior-generation orchestration retry
+events for later export; it does not change activity metadata or activity spans.
+
 Operations are automatically correlated:
 
 ```text

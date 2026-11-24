@@ -91,5 +91,15 @@ namespace DurableTask.Core.History
         /// </summary>
         [DataMember]
         public IDictionary<string, string>? Tags { get; set; }
+
+        /// <summary>
+        /// Gets or sets durable retry metadata, or null for uninstrumented or non-retry activity calls.
+        /// </summary>
+        [DataMember(EmitDefaultValue = false)]
+        [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public RetryMetadata? RetryMetadata { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        internal string? RetryFailureType { get; set; }
     }
 }

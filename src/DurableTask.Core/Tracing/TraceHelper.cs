@@ -25,6 +25,7 @@ namespace DurableTask.Core.Tracing
     using DurableTask.Core.Entities;
     using DurableTask.Core.Entities.OperationFormat;
     using System.Linq;
+    using DurableTask.Core.Exceptions;
 
     /// <summary>
     ///     Helper class for logging/tracing
@@ -212,6 +213,7 @@ namespace DurableTask.Core.Tracing
             newActivity.SetTag(Schema.Task.Name, scheduledEvent.Name);
             newActivity.SetTag(Schema.Task.InstanceId, instance.InstanceId);
             newActivity.SetTag(Schema.Task.TaskId, scheduledEvent.EventId);
+            SetRetryTags(newActivity, scheduledEvent.RetryMetadata);
 
             if (!string.IsNullOrEmpty(scheduledEvent.Version))
             {
@@ -262,6 +264,7 @@ namespace DurableTask.Core.Tracing
             newActivity.AddTag(Schema.Task.Name, taskScheduledEvent.Name);
             newActivity.AddTag(Schema.Task.InstanceId, instance?.InstanceId);
             newActivity.AddTag(Schema.Task.TaskId, taskScheduledEvent.EventId);
+            SetRetryTags(newActivity, taskScheduledEvent.RetryMetadata);
 
             if (!string.IsNullOrEmpty(taskScheduledEvent.Version))
             {
@@ -269,6 +272,84 @@ namespace DurableTask.Core.Tracing
             }
 
             return newActivity;
+        }
+
+        static void SetRetryTags(Activity activity, RetryMetadata? metadata)
+        {
+            if (metadata != null)
+            {
+                activity.SetTag(Schema.Task.RetryAttempt, metadata.AttemptNumber);
+                activity.SetTag(Schema.Task.RetryGroupId, metadata.RetryGroupId);
+                activity.SetTag(Schema.Task.RetryMaxAttempts, metadata.MaxAttempts);
+            }
+        }
+
+        internal static string? GetTaskFailureType(Exception failure) =>
+            (failure as OrchestrationException)?.FailureDetails?.ErrorType
+            ?? failure.InnerException?.GetType().FullName
+            ?? failure.GetType().FullName;
+
+        internal static void AddTaskRetryEvents(Activity? activity, IEnumerable<HistoryEvent> history)
+        {
+            if (activity == null)
+            {
+                return;
+            }
+
+            var emitted = new HashSet<(int TaskId, string GroupId)>();
+            foreach (ActivityEvent existing in activity.Events)
+            {
+                if (existing.Name == Schema.Task.RetryScheduled)
+                {
+                    var tags = existing.Tags.ToDictionary(tag => tag.Key, tag => tag.Value);
+                    if (tags.TryGetValue(Schema.Task.TaskId, out object? taskId) && taskId is int id
+                        && tags.TryGetValue(Schema.Task.RetryGroupId, out object? groupId) && groupId is string group)
+                    {
+                        emitted.Add((id, group));
+                    }
+                }
+            }
+
+            var previousAttempts = new Dictionary<string, TaskScheduledEvent>(StringComparer.Ordinal);
+            var failures = new Dictionary<int, TaskFailedEvent>();
+            foreach (HistoryEvent historyEvent in history)
+            {
+                if (historyEvent is TaskFailedEvent failed)
+                {
+                    failures[failed.TaskScheduledId] = failed;
+                }
+                else if (historyEvent is TaskScheduledEvent scheduled && scheduled.RetryMetadata is RetryMetadata metadata)
+                {
+                    if (metadata.AttemptNumber > 1 && emitted.Add((scheduled.EventId, metadata.RetryGroupId)))
+                    {
+                        TaskFailedEvent? previousFailure = null;
+                        if (previousAttempts.TryGetValue(metadata.RetryGroupId, out TaskScheduledEvent? previous)
+                            && previous.RetryMetadata!.AttemptNumber == metadata.AttemptNumber - 1)
+                        {
+                            failures.TryGetValue(previous.EventId, out previousFailure);
+                        }
+
+                        // Never deserialize opaque legacy Details just for telemetry.
+                        string? failureType = previousFailure?.FailureDetails?.ErrorType
+                            ?? scheduled.RetryFailureType
+                            ?? typeof(TaskFailedException).FullName;
+                        activity.AddEvent(new ActivityEvent(
+                            Schema.Task.RetryScheduled,
+                            timestamp: GetActivityStartTime(scheduled.Timestamp),
+                            tags: new ActivityTagsCollection
+                            {
+                                { Schema.Task.Name, scheduled.Name },
+                                { Schema.Task.TaskId, scheduled.EventId },
+                                { Schema.Task.RetryAttempt, metadata.AttemptNumber },
+                                { Schema.Task.RetryGroupId, metadata.RetryGroupId },
+                                { Schema.Task.RetryMaxAttempts, metadata.MaxAttempts },
+                                { Schema.Task.FailureType, failureType },
+                            }));
+                    }
+
+                    previousAttempts[metadata.RetryGroupId] = scheduled;
+                }
+            }
         }
 
         /// <summary>

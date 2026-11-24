@@ -16,6 +16,7 @@ namespace DurableTask.ApplicationInsights
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.ApplicationInsights;
@@ -58,6 +59,46 @@ namespace DurableTask.ApplicationInsights
 
             OperationTelemetry telemetry = CreateTelemetry(activity);
             this.telemetryClient.Track(telemetry);
+
+            if (activity.Kind != ActivityKind.Server
+                || !Equals(activity.GetTagItem("durabletask.type"), "orchestration"))
+            {
+                return;
+            }
+
+            foreach (ActivityEvent activityEvent in activity.Events)
+            {
+                if (activityEvent.Name != "durabletask.task.retry.scheduled")
+                {
+                    continue;
+                }
+
+                var retryEvent = new EventTelemetry(activityEvent.Name)
+                {
+                    Timestamp = activityEvent.Timestamp,
+                };
+                retryEvent.Context.Operation.Id = activity.TraceId.ToString();
+                retryEvent.Context.Operation.ParentId = activity.SpanId.ToString();
+                foreach (KeyValuePair<string, object> tag in activityEvent.Tags)
+                {
+                    switch (tag.Key)
+                    {
+                        case "durabletask.task.name":
+                        case "durabletask.task.task_id":
+                        case "durabletask.task.retry.attempt":
+                        case "durabletask.task.retry.group_id":
+                        case "durabletask.task.retry.max_attempts":
+                        case "durabletask.task.failure.type":
+                            if (tag.Value != null)
+                            {
+                                retryEvent.Properties[tag.Key] = Convert.ToString(tag.Value, CultureInfo.InvariantCulture);
+                            }
+                            break;
+                    }
+                }
+
+                this.telemetryClient.TrackEvent(retryEvent);
+            }
         }
 
         static OperationTelemetry CreateTelemetry(Activity activity)

@@ -94,7 +94,13 @@ namespace DurableTask.Core
         {
             if (options.RetryOptions != null)
             {
-                Task<TResult> RetryCall() => ScheduleTask<TResult>(name, version, ScheduleTaskOptions.CreateBuilder().WithTags(options.Tags).Build(), parameters);
+                var attemptOptions = ScheduleTaskOptions.CreateBuilder();
+                if (options.Tags != null)
+                {
+                    attemptOptions.WithTags(options.Tags);
+                }
+
+                Task<TResult> RetryCall() => ScheduleTask<TResult>(name, version, attemptOptions.Build(), parameters);
                 var retryInterceptor = new RetryInterceptor<TResult>(this, options.RetryOptions, RetryCall);
                 return await retryInterceptor.Invoke();
             }
@@ -137,6 +143,19 @@ namespace DurableTask.Core
                 Input = serializedInput,
                 Tags = options.Tags,
             };
+
+            ActivityRetryContext retryContext = this.ActivityRetryContext;
+            if (retryContext != null)
+            {
+                retryContext.RetryGroupId ??= this.OrchestrationInstance.ExecutionId + ":" + id.ToString(CultureInfo.InvariantCulture);
+                scheduleTaskTaskAction.RetryMetadata = new RetryMetadata(
+                    retryContext.AttemptNumber,
+                    retryContext.MaxAttempts,
+                    retryContext.RetryGroupId);
+                scheduleTaskTaskAction.RetryFailureType = retryContext.PreviousFailure == null
+                    ? null
+                    : TraceHelper.GetTaskFailureType(retryContext.PreviousFailure);
+            }
 
             this.orchestratorActionsMap.Add(id, scheduleTaskTaskAction);
 
@@ -355,6 +374,8 @@ namespace DurableTask.Core
                     + "orchestrator code after this instance had already started running?");
             }
 
+            // Keep only the sanitized type in memory for completion-time telemetry projection.
+            scheduledEvent.RetryFailureType = currentReplayAction.RetryFailureType;
             this.orchestratorActionsMap.Remove(taskId);
         }
 

@@ -31,6 +31,14 @@ namespace DurableTask.Core
         /// </summary>
         private static readonly ProxyGenerator ProxyGenerator = new ProxyGenerator();
 
+        readonly System.Threading.AsyncLocal<ActivityRetryContext> activityRetryContext = new System.Threading.AsyncLocal<ActivityRetryContext>();
+
+        internal ActivityRetryContext ActivityRetryContext
+        {
+            get => this.activityRetryContext.Value;
+            set => this.activityRetryContext.Value = value;
+        }
+
         /// <summary>
         /// Thread-static variable used to signal whether the calling thread is the orchestrator thread.
         /// The primary use case is for detecting illegal async usage in orchestration code.

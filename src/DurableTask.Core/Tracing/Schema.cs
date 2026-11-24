@@ -29,6 +29,11 @@ namespace DurableTask.Core.Tracing
             internal const string Operation = "durabletask.task.operation";
             internal const string ScheduledTime = "durabletask.task.scheduled_time";
             internal const string ErrorMessage = "durabletask.entity.error_message";
+            internal const string RetryAttempt = "durabletask.task.retry.attempt";
+            internal const string RetryGroupId = "durabletask.task.retry.group_id";
+            internal const string RetryMaxAttempts = "durabletask.task.retry.max_attempts";
+            internal const string FailureType = "durabletask.task.failure.type";
+            internal const string RetryScheduled = "durabletask.task.retry.scheduled";
         }
 
         internal static class Status

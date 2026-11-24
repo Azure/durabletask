@@ -1140,6 +1140,7 @@ namespace DurableTask.Core
         private void ResetDistributedTraceActivity(OrchestrationRuntimeState runtimeState)
         {
             TraceHelper.SetRuntimeStatusTag(runtimeState.OrchestrationStatus.ToString());
+            TraceHelper.AddTaskRetryEvents(DistributedTraceActivity.Current, runtimeState.Events);
             DistributedTraceActivity.Current?.Stop();
             DistributedTraceActivity.Current = null;
         }
@@ -1155,6 +1156,7 @@ namespace DurableTask.Core
             }
 
             TraceHelper.SetRuntimeStatusTag(completedRuntimeState.OrchestrationStatus.ToString());
+            TraceHelper.AddTaskRetryEvents(currentTraceActivity, completedRuntimeState.Events);
             currentTraceActivity?.Stop();
             DistributedTraceActivity.Current = null;
 
@@ -1207,7 +1209,9 @@ namespace DurableTask.Core
                 version: scheduleTaskOrchestratorAction.Version,
                 input: scheduleTaskOrchestratorAction.Input)
             {
-                Tags = scheduleTaskOrchestratorAction.Tags
+                Tags = scheduleTaskOrchestratorAction.Tags,
+                RetryMetadata = scheduleTaskOrchestratorAction.RetryMetadata,
+                RetryFailureType = scheduleTaskOrchestratorAction.RetryFailureType,
             };
 
             ActivitySpanId clientSpanId = ActivitySpanId.CreateRandom();
@@ -1229,7 +1233,9 @@ namespace DurableTask.Core
                     name: scheduleTaskOrchestratorAction.Name,
                     version: scheduleTaskOrchestratorAction.Version)
                 {
-                    Tags = scheduleTaskOrchestratorAction.Tags
+                    Tags = scheduleTaskOrchestratorAction.Tags,
+                    RetryMetadata = scheduleTaskOrchestratorAction.RetryMetadata,
+                    RetryFailureType = scheduleTaskOrchestratorAction.RetryFailureType,
                 };
 
                 if (parentTraceActivity != null)

@@ -27,6 +27,8 @@ namespace DurableTask.Core.Tests
     using DurableTask.Core.Command;
     using DurableTask.Core.History;
     using DurableTask.Core.Tracing;
+    using DurableTask.ApplicationInsights;
+    using Microsoft.ApplicationInsights.DataContracts;
     using DurableTask.Emulator;
     using DurableTask.Test.Orchestrations;
     using Microsoft.Extensions.Logging;
@@ -42,6 +44,7 @@ namespace DurableTask.Core.Tests
         TaskHubClient client = null!;
         DeliveryAttemptOrchestrationService service = null!;
         DeliveryAttemptActivity deliveryAttemptActivity = null!;
+        RetryMetadataActivity retryMetadataActivity = null!;
 
         [TestInitialize]
         public void InitializeTests()
@@ -54,6 +57,7 @@ namespace DurableTask.Core.Tests
             });
             this.service = new DeliveryAttemptOrchestrationService();
             this.deliveryAttemptActivity = new DeliveryAttemptActivity();
+            this.retryMetadataActivity = new RetryMetadataActivity();
             this.worker = new TaskHubWorker(this.service, loggerFactory);
 
             // We use `GetAwaiter().GetResult()` because otherwise this method will fail with:
@@ -64,12 +68,13 @@ namespace DurableTask.Core.Tests
                     typeof(ParentWorkflow),
                     typeof(ChildWorkflow),
                     typeof(ActivityStatusResetOrchestration),
-                    typeof(DeliveryAttemptOrchestration))
+                    typeof(DeliveryAttemptOrchestration),
+                    typeof(RetryMetadataOrchestration))
                 .AddTaskActivities(
                     typeof(SimplestGetUserTask),
                     typeof(SimplestSendGreetingTask),
                     typeof(ActivityStatusResetActivity))
-                .AddTaskActivities(this.deliveryAttemptActivity)
+                .AddTaskActivities(this.deliveryAttemptActivity, this.retryMetadataActivity)
                 .StartAsync().GetAwaiter().GetResult();
 
             this.client = new TaskHubClient(this.service);
@@ -147,6 +152,139 @@ namespace DurableTask.Core.Tests
             Assert.IsNull(workItem.DeliveryAttempt);
             Assert.IsNull(context.DeliveryAttempt);
             Assert.IsNull(metadata.DeliveryAttempt);
+        }
+
+        [DataTestMethod]
+        [DataRow(false, false, false)]
+        [DataRow(true, false, false)]
+        [DataRow(false, true, false)]
+        [DataRow(true, true, false)]
+        [DataRow(false, false, true)]
+        [DataRow(true, true, true)]
+        public async Task DurableRetryMetadataFlowsThroughDispatchersAndTelemetry(bool includeParameters, bool includeFailureDetails, bool fail)
+        {
+            using var collector = new DurableActivityCollector();
+            using var channel = new CapturingTelemetryChannel();
+            using var configuration = DurableTelemetryModuleTests.CreateConfiguration(channel);
+            await using var module = new DurableTelemetryModule();
+            module.Initialize(configuration);
+            this.worker.TaskOrchestrationDispatcher.IncludeParameters = includeParameters;
+            this.worker.TaskActivityDispatcher.IncludeDetails = includeFailureDetails;
+            this.service.ActivityDeliveryAttempt = 42;
+            var completionGate = new TaskCompletionSource<bool>();
+            this.retryMetadataActivity.CompletionGate = completionGate.Task;
+            var history = new ConcurrentDictionary<int, TaskScheduledEvent>();
+            this.worker.AddOrchestrationDispatcherMiddleware(async (context, next) =>
+            {
+                foreach (TaskScheduledEvent scheduled in context.GetProperty<OrchestrationRuntimeState>().Events.OfType<TaskScheduledEvent>())
+                {
+                    history[scheduled.EventId] = scheduled;
+                }
+
+                await next();
+            });
+
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(RetryMetadataOrchestration), fail ? "fail" : "secret input");
+            try
+            {
+                Task started = this.retryMetadataActivity.FinalAttemptStarted.Task;
+                Assert.AreSame(started, await Task.WhenAny(started, Task.Delay(TimeSpan.FromSeconds(15))));
+                Assert.IsFalse(channel.Items.OfType<EventTelemetry>().Any(), "Retry events are not live notifications.");
+                Assert.IsFalse(collector.Activities.Any(a => a.Kind == ActivityKind.Server
+                    && Equals(a.GetTagItem(Schema.Task.Type), TraceActivityConstants.Orchestration)),
+                    "Do not prematurely stop or duplicate orchestration spans.");
+            }
+            finally
+            {
+                completionGate.TrySetResult(true);
+            }
+
+            OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(15));
+            Assert.AreEqual(fail ? OrchestrationStatus.Failed : OrchestrationStatus.Completed, state.OrchestrationStatus);
+
+            TaskContext[] contexts = this.retryMetadataActivity.Contexts.OrderBy(c => c.RetryMetadata!.AttemptNumber).ToArray();
+            Assert.AreEqual(3, contexts.Length);
+            Assert.AreEqual(3, history.Count);
+            string group = contexts[0].RetryMetadata!.RetryGroupId;
+            for (int i = 0; i < contexts.Length; i++)
+            {
+                Assert.AreEqual(i + 1, contexts[i].RetryMetadata!.AttemptNumber);
+                Assert.AreEqual(3, contexts[i].RetryMetadata!.MaxAttempts);
+                Assert.AreEqual(group, contexts[i].RetryMetadata!.RetryGroupId);
+                Assert.AreEqual(42L, contexts[i].DeliveryAttempt);
+                TaskScheduledEvent scheduled = history[contexts[i].TaskId];
+                Assert.AreEqual(group, scheduled.RetryMetadata!.RetryGroupId);
+                Assert.AreEqual(i + 1, scheduled.RetryMetadata.AttemptNumber);
+                Assert.AreEqual(includeParameters, scheduled.Input != null);
+            }
+
+            ActivityEvent[] events = collector.Activities
+                .SelectMany(a => a.Events)
+                .Where(e => e.Name == Schema.Task.RetryScheduled)
+                .OrderBy(e => (int)e.Tags.Single(t => t.Key == Schema.Task.RetryAttempt).Value!)
+                .ToArray();
+            Assert.AreEqual(2, events.Length, "Replay must not duplicate retry events.");
+            Activity orchestrationSpan = collector.Activities.Single(a =>
+                a.Kind == ActivityKind.Server && Equals(a.GetTagItem(Schema.Task.Type), TraceActivityConstants.Orchestration));
+            Assert.AreEqual(2, orchestrationSpan.Events.Count(e => e.Name == Schema.Task.RetryScheduled));
+            EventTelemetry[] exportedEvents = channel.Items.OfType<EventTelemetry>()
+                .OrderBy(e => e.Properties[Schema.Task.RetryAttempt]).ToArray();
+            Assert.AreEqual(2, exportedEvents.Length);
+            for (int i = 0; i < events.Length; i++)
+            {
+                Assert.AreEqual(contexts[i + 1].TaskId, events[i].Tags.Single(t => t.Key == Schema.Task.TaskId).Value);
+                Assert.AreEqual(new DateTimeOffset(history[contexts[i + 1].TaskId].Timestamp), events[i].Timestamp);
+                Assert.AreEqual(includeFailureDetails ? typeof(InvalidOperationException).FullName : typeof(DurableTask.Core.Exceptions.TaskFailedException).FullName,
+                    events[i].Tags.Single(t => t.Key == Schema.Task.FailureType).Value);
+                Assert.IsFalse(events[i].Tags.Any(t => t.Value?.ToString()?.Contains("secret") == true));
+                Assert.AreEqual(events[i].Timestamp, exportedEvents[i].Timestamp);
+                Assert.AreEqual(orchestrationSpan.TraceId.ToString(), exportedEvents[i].Context.Operation.Id);
+                Assert.AreEqual(orchestrationSpan.SpanId.ToString(), exportedEvents[i].Context.Operation.ParentId);
+                Assert.AreEqual(6, exportedEvents[i].Properties.Count);
+            }
+
+            Activity[] serverSpans = collector.Activities
+                .Where(a => a.Kind == ActivityKind.Server && Equals(a.GetTagItem(Schema.Task.Type), TraceActivityConstants.Activity))
+                .OrderBy(a => (int)a.GetTagItem(Schema.Task.RetryAttempt)!)
+                .ToArray();
+            Assert.AreEqual(3, serverSpans.Length);
+            for (int i = 0; i < serverSpans.Length; i++)
+            {
+                Assert.AreEqual(i + 1, serverSpans[i].GetTagItem(Schema.Task.RetryAttempt));
+                Assert.AreEqual(3, serverSpans[i].GetTagItem(Schema.Task.RetryMaxAttempts));
+                Assert.AreEqual(group, serverSpans[i].GetTagItem(Schema.Task.RetryGroupId));
+            }
+        }
+
+        [TestMethod]
+        public async Task DurableRetryEventsAreExportedOnTerminationWithoutCompletingThePendingActivity()
+        {
+            using var collector = new DurableActivityCollector();
+            using var channel = new CapturingTelemetryChannel();
+            using var configuration = DurableTelemetryModuleTests.CreateConfiguration(channel);
+            await using var module = new DurableTelemetryModule();
+            module.Initialize(configuration);
+            var completionGate = new TaskCompletionSource<bool>();
+            this.retryMetadataActivity.CompletionGate = completionGate.Task;
+            OrchestrationInstance instance = await this.client.CreateOrchestrationInstanceAsync(
+                typeof(RetryMetadataOrchestration), "secret input");
+            try
+            {
+                Task started = this.retryMetadataActivity.FinalAttemptStarted.Task;
+                Assert.AreSame(started, await Task.WhenAny(started, Task.Delay(TimeSpan.FromSeconds(15))));
+                Assert.AreEqual(0, channel.Items.OfType<EventTelemetry>().Count());
+                await this.client.TerminateInstanceAsync(instance, "stop");
+                OrchestrationState state = await this.client.WaitForOrchestrationAsync(instance, TimeSpan.FromSeconds(15));
+                Assert.AreEqual(OrchestrationStatus.Terminated, state.OrchestrationStatus);
+                Assert.AreEqual(2, channel.Items.OfType<EventTelemetry>().Count());
+                Assert.AreEqual(1, collector.Activities.Count(a => a.Kind == ActivityKind.Server
+                    && Equals(a.GetTagItem(Schema.Task.Type), TraceActivityConstants.Orchestration)));
+            }
+            finally
+            {
+                completionGate.TrySetResult(true);
+            }
         }
 
         [TestMethod]
@@ -580,6 +718,8 @@ namespace DurableTask.Core.Tests
                     .LastOrDefault();
             }
 
+            public Activity[] Activities => this.activities.ToArray();
+
             public void Dispose()
             {
                 this.listener.Dispose();
@@ -620,6 +760,46 @@ namespace DurableTask.Core.Tests
             protected override string Execute(TaskContext context, string input)
             {
                 this.DeliveryAttempt = context.DeliveryAttempt;
+                return input;
+            }
+        }
+
+        private sealed class RetryMetadataOrchestration : TaskOrchestration<string, string>
+        {
+            public override Task<string> RunTask(OrchestrationContext context, string input)
+            {
+                return context.ScheduleWithRetry<string>(typeof(RetryMetadataActivity),
+                    new RetryOptions(TimeSpan.FromMilliseconds(1), 3), input);
+            }
+        }
+
+        private sealed class RetryMetadataActivity : AsyncTaskActivity<string, string>
+        {
+            internal ConcurrentBag<TaskContext> Contexts { get; } = new ConcurrentBag<TaskContext>();
+
+            internal Task? CompletionGate { get; set; }
+
+            internal TaskCompletionSource<bool> FinalAttemptStarted { get; } = new TaskCompletionSource<bool>();
+
+            protected override async Task<string> ExecuteAsync(TaskContext context, string input)
+            {
+                this.Contexts.Add(context);
+                if (context.RetryMetadata!.AttemptNumber < 3)
+                {
+                    throw new InvalidOperationException("secret error message");
+                }
+
+                this.FinalAttemptStarted.TrySetResult(true);
+                if (this.CompletionGate != null)
+                {
+                    await this.CompletionGate;
+                }
+
+                if (input == "fail")
+                {
+                    throw new InvalidOperationException("secret error message");
+                }
+
                 return input;
             }
         }

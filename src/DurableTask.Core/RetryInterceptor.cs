@@ -53,12 +53,27 @@ namespace DurableTask.Core
         {
             Exception? lastException = null;
             DateTime firstAttempt = this.context.CurrentUtcDateTime;
+            var retryContext = new ActivityRetryContext { MaxAttempts = this.retryOptions.MaxNumberOfAttempts };
 
             for (var retryCount = 0; retryCount < this.retryOptions.MaxNumberOfAttempts; retryCount++)
             {
                 try
                 {
-                    return await this.retryCall();
+                    retryContext.AttemptNumber = retryCount + 1;
+                    retryContext.PreviousFailure = lastException;
+                    ActivityRetryContext? previousContext = this.context.ActivityRetryContext;
+                    Task<T> attempt;
+                    try
+                    {
+                        this.context.ActivityRetryContext = retryContext;
+                        attempt = this.retryCall();
+                    }
+                    finally
+                    {
+                        this.context.ActivityRetryContext = previousContext;
+                    }
+
+                    return await attempt;
                 }
                 catch (Exception e) when (!Utils.IsFatal(e))
                 {
@@ -128,5 +143,16 @@ namespace DurableTask.Core
 
             return nextDelay;
         }
+    }
+
+    internal sealed class ActivityRetryContext
+    {
+        internal int AttemptNumber { get; set; }
+
+        internal int MaxAttempts { get; set; }
+
+        internal string? RetryGroupId { get; set; }
+
+        internal Exception? PreviousFailure { get; set; }
     }
 }
