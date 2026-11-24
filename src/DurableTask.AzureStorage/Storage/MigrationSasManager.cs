@@ -1,0 +1,318 @@
+﻿//  ----------------------------------------------------------------------------------
+//  Copyright Microsoft Corporation
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//  http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//  ----------------------------------------------------------------------------------
+#nullable enable
+namespace DurableTask.AzureStorage.Storage
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Azure;
+    using Azure.Core;
+    using Azure.Data.Tables;
+    using Azure.Data.Tables.Sas;
+    using Azure.Storage.Blobs;
+    using Azure.Storage.Sas;
+    using Azure.Storage.Queues;
+    using BlobKey = Azure.Storage.Blobs.Models.UserDelegationKey;
+    using QueueKey = Azure.Storage.Queues.Models.UserDelegationKey;
+
+    sealed class MigrationSasManager
+    {
+        internal static readonly TimeSpan SasLifetime = TimeSpan.FromSeconds(15);
+        static readonly TimeSpan RenewBefore = TimeSpan.FromSeconds(11);
+        readonly AzureStorageMigration migration;
+        readonly Guid migrationId;
+        readonly AzureStorageOrchestrationServiceSettings settings;
+        readonly BlobServiceClient blobService;
+        readonly QueueServiceClient queueService;
+        readonly TableServiceClient tableService;
+        readonly IStorageServiceClientProvider<TableServiceClient, TableClientOptions> tableProvider;
+        readonly Action onMigrationEnding;
+        readonly object sync = new();
+        readonly SemaphoreSlim refreshLock = new(1, 1);
+        readonly Dictionary<string, AzureSasCredential> credentials = new();
+        BlobKey? blobKey;
+        QueueKey? queueKey;
+        TableUserDelegationKey? tableKey;
+        DateTimeOffset expiresAt;
+        DateTimeOffset sampledServerTime;
+        long sampledAt;
+        volatile bool isMigrationEnding;
+        CancellationTokenSource? renewalSource;
+        Task renewalTask = Task.CompletedTask;
+
+        public MigrationSasManager(
+            AzureStorageOrchestrationServiceSettings settings,
+            Guid migrationId,
+            BlobServiceClient blobService,
+            QueueServiceClient queueService,
+            TableServiceClient tableService,
+            IStorageServiceClientProvider<TableServiceClient, TableClientOptions> tableProvider,
+            Action onMigrationEnding)
+        {
+            this.settings = settings;
+            this.migrationId = migrationId;
+            this.blobService = blobService;
+            this.queueService = queueService;
+            this.tableService = tableService;
+            this.tableProvider = tableProvider;
+            this.onMigrationEnding = onMigrationEnding;
+            this.migration = new AzureStorageMigration(tableService, settings.TaskHubName);
+        }
+
+        public bool IsMigrationEnding => this.isMigrationEnding;
+
+        public async Task RefreshAsync(CancellationToken cancellationToken)
+        {
+            // Serialize explicit refreshes and the renewal loop
+            await this.refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (this.isMigrationEnding)
+                {
+                    return;
+                }
+                await this.RefreshCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                this.refreshLock.Release();
+            }
+        }
+
+        public Task StartRefreshLoop()
+        {
+            lock (this.sync)
+            {
+                if (!this.isMigrationEnding && (this.renewalSource == null || this.renewalTask.IsCompleted))
+                {
+                    this.renewalSource?.Dispose();
+                    var source = new CancellationTokenSource();
+                    this.renewalSource = source;
+                    this.renewalTask = Task.Run(() => this.RunAsync(source.Token));
+                }
+                return this.renewalTask;
+            }
+        }
+
+        public Task StopRefreshing()
+        {
+            lock (this.sync)
+            {
+                this.renewalSource?.Cancel();
+                return this.renewalTask;
+            }
+        }
+
+        async Task RunAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested && !this.isMigrationEnding)
+            {
+                try
+                {
+                    // Per-host jitter avoids synchronizing readers
+                    await Task.Delay(TimeSpan.FromMilliseconds(1000 + (uint)this.settings.WorkerId.GetHashCode() % 1000), cancellationToken).ConfigureAwait(false);
+                    await this.RefreshAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                { 
+                    break;
+                }
+                catch (Exception e)
+                {
+                    // Keep the last credentials, never extend them locally or use unrestricted authentication.
+                    this.settings.Logger.GeneralWarning(this.queueService.AccountName, this.settings.TaskHubName,
+                        $"Migration SAS renewal failed ({e.GetType().Name}). Source access will stop when its published credentials expire.");
+                }
+            }
+        }
+
+        async Task RefreshCoreAsync(CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Include the read time when checking whether the credentials have expired.
+                long sampledAt = Stopwatch.GetTimestamp();
+
+                // If the gate is missing, migration has been misconfigured
+                AzureStorageMigration.Gate? gate = await this.migration.ReadAsync(cancellationToken, this.migrationId).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("Migration control row is missing. Source access cannot be granted.");
+
+                // If the gate indicates migration is ending, exit
+                if (gate.IsMigrationEnding)
+                {
+                    this.SetMigrationEnding();
+                    return;
+                }
+
+                if (await this.RefreshKeysAsync(gate.ServerTime, cancellationToken).ConfigureAwait(false))
+                {
+                    // Key acquisition may be slow, so re-read the gate
+                    continue;
+                }
+
+                // If the gate is about to expire, extend it
+                if (gate.AccessExpiresAt <= gate.ServerTime + RenewBefore)
+                {
+                    gate.AccessExpiresAt = gate.ServerTime + SasLifetime;
+                    // Another host must have updated the gate in the meantime. Re-read and try again.
+                    if (!await this.migration.TryUpdateAsync(gate, cancellationToken).ConfigureAwait(false))
+                    {
+                        continue;
+                    }
+                }
+
+                // Generate new SAS tokens with the new expiry time
+                lock (this.sync)
+                {
+                    this.expiresAt = gate.AccessExpiresAt;
+                    this.sampledServerTime = gate.ServerTime;
+                    this.sampledAt = sampledAt;
+                    foreach (KeyValuePair<string, AzureSasCredential> entry in this.credentials)
+                    {
+                        entry.Value.Update(this.Sign(entry.Key[0], entry.Key.Substring(2)));
+                    }
+                }
+
+                // Some slowdown in the renewal path consumed the whole expiry interval. Re-read before returning
+                if (this.EstimatedServerTime >= gate.AccessExpiresAt)
+                {
+                    continue;
+                }
+                return;
+            }
+        }
+
+        async Task<bool> RefreshKeysAsync(DateTimeOffset serverTime, CancellationToken cancellationToken)
+        {
+            // Reuse delegation keys to sign new SAS tokens; normally only the control row needs refreshing.
+            bool refreshed = false;
+
+            // Tables has no CanGenerateAccountSasUri property, so check the provider's identity credential.
+            TokenCredential? credential = (this.tableProvider as IStorageTokenCredentialProvider)?.TokenCredential;
+            if (credential != null && (this.tableKey == null || this.tableKey.ExpiresOn <= serverTime.AddMinutes(5)))
+            {
+                TableUserDelegationKey key = await TableUserDelegationKey.GetAsync(this.tableService.Uri, credential,
+                    this.tableProvider.CreateOptions(), serverTime, cancellationToken).ConfigureAwait(false);
+                lock (this.sync)
+                {
+                    this.tableKey = key;
+                }
+                refreshed = true;
+            }
+
+            // Blob and Queue clients with an account key do not need delegation keys.
+            if (!this.blobService.CanGenerateAccountSasUri && (this.blobKey == null || this.blobKey.SignedExpiresOn <= serverTime.AddMinutes(5)))
+            {
+                BlobKey key = await this.blobService.GetUserDelegationKeyAsync(
+                    serverTime.AddMinutes(-15), serverTime.AddHours(24), cancellationToken).ConfigureAwait(false);
+                lock (this.sync)
+                {
+                    this.blobKey = key;
+                }
+                refreshed = true;
+            }
+            if (!this.queueService.CanGenerateAccountSasUri && (this.queueKey == null || this.queueKey.SignedExpiresOn <= serverTime.AddMinutes(5)))
+            {
+                QueueKey key = await this.queueService.GetUserDelegationKeyAsync(
+                    serverTime.AddMinutes(-15), serverTime.AddHours(24), cancellationToken).ConfigureAwait(false);
+                lock (this.sync)
+                {
+                    this.queueKey = key;
+                }
+                refreshed = true;
+            }
+            return refreshed;
+        }
+
+        DateTimeOffset EstimatedServerTime => this.sampledServerTime + TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - this.sampledAt) / (double)Stopwatch.Frequency);
+
+        public void EnsureAccess()
+        {
+            lock (this.sync)
+            {
+                if (this.isMigrationEnding)
+                {
+                    throw new OrchestrationServiceUnavailableException("Migration is ending; source storage access is disabled.");
+                }
+            }
+        }
+
+        public AzureSasCredential GetCredential(char service, string resource)
+        {
+            lock (this.sync)
+            {
+                this.EnsureAccess();
+                string key = service + ":" + resource;
+                if (!this.credentials.TryGetValue(key, out AzureSasCredential? credential))
+                {
+                    credential = new AzureSasCredential(this.Sign(service, resource));
+                    this.credentials.Add(key, credential);
+                }
+                return credential;
+            }
+        }
+
+        string Sign(char service, string resource)
+        {
+            // CanGenerateAccountSasUri means the client has an account key and can sign directly.
+            switch (service)
+            {
+                case 'b':
+                    var blob = new BlobSasBuilder { BlobContainerName = resource, Resource = "c", ExpiresOn = this.expiresAt };
+                    blob.SetPermissions(BlobContainerSasPermissions.Read | BlobContainerSasPermissions.Write | BlobContainerSasPermissions.Create
+                        | BlobContainerSasPermissions.Delete | BlobContainerSasPermissions.List);
+                    if (this.blobService.CanGenerateAccountSasUri)
+                    {
+                        return this.blobService.GetBlobContainerClient(resource).GenerateSasUri(blob).Query.TrimStart('?');
+                    }
+                    blob.Protocol = SasProtocol.Https;
+                    blob.StartsOn = this.blobKey!.SignedStartsOn;
+                    return blob.ToSasQueryParameters(this.blobKey, this.blobService.AccountName).ToString();
+                case 'q':
+                    var queue = new QueueSasBuilder { QueueName = resource, ExpiresOn = this.expiresAt };
+                    queue.SetPermissions(QueueSasPermissions.Read | QueueSasPermissions.Add | QueueSasPermissions.Update | QueueSasPermissions.Process);
+                    if (this.queueService.CanGenerateAccountSasUri)
+                    {
+                        return this.queueService.GetQueueClient(resource).GenerateSasUri(queue).Query.TrimStart('?');
+                    }
+                    queue.Protocol = SasProtocol.Https;
+                    queue.StartsOn = this.queueKey!.SignedStartsOn;
+                    return queue.ToSasQueryParameters(this.queueKey, this.queueService.AccountName).ToString();
+                case 't':
+                    // Tables has no capability flag; identity clients use the key loaded during refresh.
+                    if (this.tableKey != null)
+                    {
+                        return this.tableKey.Sign(this.tableService.AccountName, resource, this.expiresAt);
+                    }
+
+                    // Account-key connections also use bounded SAS. Queries and batches require container scope;
+                    // individual entity operations require object scope. Resource deletion is blocked by our wrappers.
+                    return this.tableService.GenerateSasUri(TableAccountSasPermissions.Read | TableAccountSasPermissions.Add
+                        | TableAccountSasPermissions.Update | TableAccountSasPermissions.Delete,
+                        TableAccountSasResourceTypes.Container | TableAccountSasResourceTypes.Object, this.expiresAt).Query.TrimStart('?');
+                default: throw new ArgumentOutOfRangeException(nameof(service));
+            }
+        }
+
+        void SetMigrationEnding()
+        {
+            this.isMigrationEnding = true;
+            this.onMigrationEnding();
+        }
+    }
+}
