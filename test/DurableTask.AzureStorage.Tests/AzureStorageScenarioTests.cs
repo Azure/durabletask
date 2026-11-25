@@ -788,6 +788,95 @@ namespace DurableTask.AzureStorage.Tests
             }
         }
 
+        [DataTestMethod]
+        [DataRow("_other")]
+        [DataRow(":12")]
+        [DataRow("/other")]
+        public async Task PurgeSingleInstance_DoesNotDeleteBlobsOfInstanceWithPrefixedId(string otherIdSuffix)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString("N");
+                string otherInstanceId = instanceId + otherIdSuffix;
+                string largeMessage = new string('x', 70 * 1024);
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                TestOrchestrationClient otherClient = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, otherInstanceId);
+                status = await otherClient.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                (int otherMessageBlobs, int otherHistoryBlobs) = await this.GetInstanceBlobCounts(otherInstanceId);
+                Assert.IsTrue(otherMessageBlobs > 0, "Should have large message blobs before purge");
+                Assert.IsTrue(otherHistoryBlobs > 0, "Should have large history blobs before purge");
+
+                await client.PurgeInstanceHistory();
+
+                Assert.AreEqual((0, 0), await this.GetInstanceBlobCounts(instanceId));
+                Assert.AreEqual((otherMessageBlobs, otherHistoryBlobs), await this.GetInstanceBlobCounts(otherInstanceId));
+
+                // Loading the history downloads the large-property blobs, as a replay does.
+                List<HistoryStateEvent> otherHistoryEvents = await otherClient.GetOrchestrationHistoryAsync(otherInstanceId);
+                Assert.IsTrue(otherHistoryEvents.Count > 0);
+
+                await host.StopAsync();
+            }
+        }
+
+        [DataTestMethod]
+        [DataRow("^")]
+        [DataRow("/nested")]
+        public async Task PurgeSingleInstance_WithEscapedInstanceId_DeletesAllBlobs(string idSuffix)
+        {
+            using (TestOrchestrationHost host = TestHelpers.GetTestOrchestrationHost(enableExtendedSessions: false))
+            {
+                await host.StartAsync();
+
+                string instanceId = Guid.NewGuid().ToString("N") + idSuffix;
+                string largeMessage = new string('x', 70 * 1024);
+
+                TestOrchestrationClient client = await host.StartOrchestrationAsync(
+                    typeof(Orchestrations.Echo), largeMessage, instanceId);
+                OrchestrationState status = await client.WaitForCompletionAsync(TimeSpan.FromMinutes(2));
+                Assert.AreEqual(OrchestrationStatus.Completed, status?.OrchestrationStatus);
+
+                (int messageBlobs, int historyBlobs) = await this.GetInstanceBlobCounts(instanceId);
+                Assert.IsTrue(messageBlobs > 0, "Should have large message blobs before purge");
+                Assert.IsTrue(historyBlobs > 0, "Should have large history blobs before purge");
+
+                await client.PurgeInstanceHistory();
+
+                Assert.AreEqual((0, 0), await this.GetInstanceBlobCounts(instanceId));
+
+                await host.StopAsync();
+            }
+        }
+
+        // Counts the blobs that belong to exactly this instance: message blobs are named after the instance id,
+        // history blobs after the escaped instance id, and blobs of longer ids nested below them are not counted.
+        async Task<(int MessageBlobs, int HistoryBlobs)> GetInstanceBlobCounts(string instanceId)
+        {
+            var containerClient = new BlobServiceClient(TestHelpers.GetTestStorageAccountConnectionString())
+                .GetBlobContainerClient("test-largemessages");
+            await containerClient.CreateIfNotExistsAsync();
+
+            async Task<int> CountAsync(string prefix)
+            {
+                return await containerClient.GetBlobsAsync(BlobTraits.None, BlobStates.None, prefix, CancellationToken.None)
+                    .CountAsync(b => b.Name.IndexOf('/', prefix.Length) < 0);
+            }
+
+            return (
+                await CountAsync(instanceId + "/message-"),
+                await CountAsync(KeySanitation.EscapePartitionKey(instanceId) + "/history-"));
+        }
+
         [TestMethod]
         public async Task PurgeInstance_WithManyHistoryRows_DeletesAll()
         {
