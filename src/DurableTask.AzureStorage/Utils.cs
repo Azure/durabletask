@@ -18,6 +18,7 @@ namespace DurableTask.AzureStorage
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Reflection;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -29,7 +30,23 @@ namespace DurableTask.AzureStorage
     {
         public static readonly Task CompletedTask = Task.FromResult(0);
 
-        public static readonly string ExtensionVersion = FileVersionInfo.GetVersionInfo(typeof(AzureStorageOrchestrationService).Assembly.Location).FileVersion;
+        public static readonly string ExtensionVersion = GetAssemblyFileVersion(typeof(AzureStorageOrchestrationService).Assembly);
+
+        /// <summary>
+        /// Gets the file version of an assembly. Assemblies in a single-file bundle have an empty
+        /// <see cref="Assembly.Location"/>, so the version is read from the assembly's
+        /// <see cref="AssemblyFileVersionAttribute"/> instead.
+        /// </summary>
+        internal static string GetAssemblyFileVersion(Assembly assembly)
+        {
+            string location = assembly.Location;
+            if (!string.IsNullOrEmpty(location))
+            {
+                return FileVersionInfo.GetVersionInfo(location).FileVersion;
+            }
+
+            return assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? string.Empty;
+        }
 
         // DurableTask.Core has a public static variable that contains the app name
         public static readonly string AppName = DurableTask.Core.Common.Utils.AppName;
