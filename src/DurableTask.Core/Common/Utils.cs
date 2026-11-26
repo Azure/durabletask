@@ -49,7 +49,23 @@ namespace DurableTask.Core.Common
         /// <summary>
         /// Gets the version of the DurableTask.Core nuget package, which by convension is the same as the assembly file version.
         /// </summary>
-        internal static readonly string PackageVersion = FileVersionInfo.GetVersionInfo(typeof(TaskOrchestration).Assembly.Location).FileVersion;
+        internal static readonly string PackageVersion = GetAssemblyFileVersion(typeof(TaskOrchestration).Assembly);
+
+        /// <summary>
+        /// Gets the file version of an assembly. Assemblies in a single-file bundle have an empty
+        /// <see cref="Assembly.Location"/>, so the version is read from the assembly's
+        /// <see cref="AssemblyFileVersionAttribute"/> instead.
+        /// </summary>
+        internal static string GetAssemblyFileVersion(Assembly assembly)
+        {
+            string location = assembly.Location;
+            if (!string.IsNullOrEmpty(location))
+            {
+                return FileVersionInfo.GetVersionInfo(location).FileVersion;
+            }
+
+            return assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? string.Empty;
+        }
 
         private static readonly JsonSerializerSettings ObjectJsonSettings = new JsonSerializerSettings
         {
