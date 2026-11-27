@@ -15,6 +15,8 @@
 namespace DurableTask.Core.Tests
 {
     using System;
+    using System.Collections.Generic;
+    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using DurableTask.Emulator;
@@ -93,6 +95,105 @@ namespace DurableTask.Core.Tests
 
             // Starting again would throw "Worker is already started" if the stop had been skipped.
             await worker.StartAsync();
+            await worker.StopAsync(true);
+        }
+
+        /// <summary>
+        ///     Forwards every call to the emulator and records StopAsync(bool) arguments.
+        ///     When StartGate is set, StartAsync() does not complete until the gate is opened.
+        /// </summary>
+        public class ServiceSpy : DispatchProxy
+        {
+            public IOrchestrationService? Inner { get; set; }
+            public List<bool> StopCalls { get; } = new List<bool>();
+            public TaskCompletionSource<bool>? StartGate { get; set; }
+            public TaskCompletionSource<bool> StartEntered { get; } = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+            {
+                if (targetMethod!.Name == nameof(IOrchestrationService.StopAsync) && args?.Length == 1 && args[0] is bool forced)
+                {
+                    lock (this.StopCalls)
+                    {
+                        this.StopCalls.Add(forced);
+                    }
+                }
+
+                if (targetMethod.Name == nameof(IOrchestrationService.StartAsync) && this.StartGate != null)
+                {
+                    this.StartEntered.TrySetResult(true);
+                    return this.StartGate.Task;
+                }
+
+                try
+                {
+                    return targetMethod.Invoke(this.Inner, args);
+                }
+                catch (TargetInvocationException e) when (e.InnerException != null)
+                {
+                    throw e.InnerException;
+                }
+            }
+
+            public static (IOrchestrationService Service, ServiceSpy Spy) Create(LocalOrchestrationService inner)
+            {
+                IOrchestrationService proxy = Create<IOrchestrationService, ServiceSpy>();
+                var spy = (ServiceSpy)(object)proxy;
+                spy.Inner = inner;
+                return (proxy, spy);
+            }
+        }
+
+        [TestMethod]
+        public async Task StopAsyncWithToken_ForwardsForcedFlagFromToken()
+        {
+            var (service, spy) = ServiceSpy.Create(new LocalOrchestrationService());
+            var worker = new TaskHubWorker(service);
+            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration));
+
+            using var live = new CancellationTokenSource();
+            await worker.StartAsync();
+            await worker.StopAsync(live.Token);
+
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            await worker.StartAsync();
+            await worker.StopAsync(canceled.Token);
+
+            CollectionAssert.AreEqual(new[] { false, true }, spy.StopCalls);
+        }
+
+        [TestMethod]
+        public async Task StartAsyncWithToken_CanceledWhileWaitingForStartLock_ThrowsBeforeFirstStartCompletes()
+        {
+            var (service, spy) = ServiceSpy.Create(new LocalOrchestrationService());
+            spy.StartGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var worker = new TaskHubWorker(service);
+            worker.AddTaskOrchestrations(typeof(SimplestGreetingsOrchestration));
+
+            // The first start holds the start lock while it waits inside the service's StartAsync.
+            Task<TaskHubWorker> first = worker.StartAsync();
+            await spy.StartEntered.Task.WaitAsync(Timeout);
+
+            using var cts = new CancellationTokenSource();
+            Task<TaskHubWorker> second = worker.StartAsync(cts.Token);
+            Assert.IsFalse(second.IsCompleted, "The second start should be waiting for the lock.");
+
+            cts.Cancel();
+            try
+            {
+                await second.WaitAsync(Timeout);
+                Assert.Fail("The queued start should be canceled.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected. TaskCanceledException derives from it.
+            }
+
+            Assert.IsFalse(first.IsCompleted, "The second start must fail while the first still holds the lock.");
+
+            spy.StartGate.SetResult(true);
+            await first.WaitAsync(Timeout);
             await worker.StopAsync(true);
         }
     }
