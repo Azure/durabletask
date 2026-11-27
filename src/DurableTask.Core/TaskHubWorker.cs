@@ -284,11 +284,27 @@ namespace DurableTask.Core
         ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
         /// </summary>
         /// <returns></returns>
-        public async Task<TaskHubWorker> StartAsync()
+        public Task<TaskHubWorker> StartAsync()
         {
-            await this.slimLock.WaitAsync();
+            return this.StartAsync(CancellationToken.None);
+        }
+
+        /// <summary>
+        ///     Starts the TaskHubWorker so it begins processing orchestrations and activities
+        /// </summary>
+        /// <param name="cancellationToken">
+        ///     Token that cancels the start request, for example from a hosted service. It is observed before startup begins;
+        ///     once the worker has started to start, the startup runs to completion.
+        /// </param>
+        /// <returns></returns>
+        /// <exception cref="OperationCanceledException">The token was canceled before the worker began to start.</exception>
+        public async Task<TaskHubWorker> StartAsync(CancellationToken cancellationToken)
+        {
+            await this.slimLock.WaitAsync(cancellationToken);
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (this.isStarted)
                 {
                     throw new InvalidOperationException("Worker is already started");
@@ -349,6 +365,19 @@ namespace DurableTask.Core
         public async Task StopAsync()
         {
             await this.StopAsync(false);
+        }
+
+        /// <summary>
+        ///     Gracefully stops the TaskHubWorker, unless the token is already canceled.
+        /// </summary>
+        /// <param name="cancellationToken">
+        ///     Token that signals the graceful shutdown period is over, for example from a hosted service.
+        ///     When it is already canceled on entry, the worker is stopped as with <c>StopAsync(true)</c>.
+        ///     The call never skips the stop because of the token, so the worker is not left running.
+        /// </param>
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            await this.StopAsync(cancellationToken.IsCancellationRequested);
         }
 
         /// <summary>
